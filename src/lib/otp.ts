@@ -14,12 +14,17 @@ export function generateOTP(): string {
  * Currently using mock implementation - always returns '123456'
  * Replace with actual SMS provider (Twilio, Firebase, etc.) in production
  */
+export function isMockOTPMode(): boolean {
+  // Use real provider only when one is explicitly configured.
+  const provider = (process.env.OTP_PROVIDER || '').toLowerCase();
+  return provider === '' || provider === 'mock';
+}
+
 export async function sendOTP(phone: string): Promise<{ success: boolean; otp?: string; error?: string }> {
   try {
-    // Mock OTP for development - always use '123456'
-    const otp = process.env.NODE_ENV === 'production' ? generateOTP() : '123456';
+    const otp = isMockOTPMode() ? '123456' : generateOTP();
 
-    console.log(`📱 [MOCK OTP] Sending OTP to ${phone}: ${otp}`);
+    console.log(`📱 [${isMockOTPMode() ? 'MOCK' : 'REAL'} OTP] Sending OTP to ${phone}: ${otp}`);
 
     // In production, integrate with SMS provider:
     /*

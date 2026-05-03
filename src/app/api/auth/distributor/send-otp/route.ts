@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { createOTPSession } from '@/lib/otp';
+import { createOTPSession, isMockOTPMode } from '@/lib/otp';
 import { validatePhone } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
@@ -56,8 +56,8 @@ export async function POST(request: NextRequest) {
       message: 'OTP sent successfully',
     };
 
-    if (process.env.NODE_ENV !== 'production') {
-      response.otp = otp; // Only for development
+    if (isMockOTPMode()) {
+      response.otp = otp;
     }
 
     return NextResponse.json(response);
