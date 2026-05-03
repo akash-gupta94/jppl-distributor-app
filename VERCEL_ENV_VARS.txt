@@ -1,0 +1,66 @@
+================================================================================
+VERCEL ENVIRONMENT VARIABLES - JPPL Distributor App
+================================================================================
+
+Copy these values to Vercel Dashboard → Settings → Environment Variables
+or use the Vercel CLI to add them.
+
+================================================================================
+
+Variable Name: DATABASE_URL
+Value: postgresql://jppl-dealer-app-user:A7fKx9LmQ2vPzR8uT4yWbH3Nc@smaacsync.smaac.in:5432/jppl-dealer-app
+
+--------------------------------------------------------------------------------
+
+Variable Name: SESSION_SECRET
+Value: jppl-prod-7k9Lx4mQz2vPR8uT6yWbH3NcA5fJ1gDsE9h
+
+--------------------------------------------------------------------------------
+
+Variable Name: ADMIN_EMAIL
+Value: admin@jppl.com
+
+--------------------------------------------------------------------------------
+
+Variable Name: ADMIN_PASSWORD
+Value: admin123
+
+--------------------------------------------------------------------------------
+
+Variable Name: NEXT_PUBLIC_APP_NAME
+Value: JPPL Distributor Portal
+
+--------------------------------------------------------------------------------
+
+Variable Name: NEXT_PUBLIC_COMPANY_NAME
+Value: JPP and Company General Politics Private Limited
+
+================================================================================
+
+QUICK CLI COMMANDS TO ADD THESE:
+
+vercel env add DATABASE_URL production
+# Paste: postgresql://jppl-dealer-app-user:A7fKx9LmQ2vPzR8uT4yWbH3Nc@smaacsync.smaac.in:5432/jppl-dealer-app
+
+vercel env add SESSION_SECRET production
+# Paste: jppl-prod-7k9Lx4mQz2vPR8uT6yWbH3NcA5fJ1gDsE9h
+
+vercel env add ADMIN_EMAIL production
+# Paste: admin@jppl.com
+
+vercel env add ADMIN_PASSWORD production
+# Paste: admin123
+
+vercel env add NEXT_PUBLIC_APP_NAME production
+# Paste: JPPL Distributor Portal
+
+vercel env add NEXT_PUBLIC_COMPANY_NAME production
+# Paste: JPP and Company General Politics Private Limited
+
+================================================================================
+
+After adding all variables, redeploy:
+
+vercel --prod
+
+================================================================================

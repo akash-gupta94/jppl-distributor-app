@@ -1,0 +1,236 @@
+// Prisma Schema for JPPL Distributor Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Admin Users
+model Admin {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Distributor Levels (e.g., Platinum, Gold, Silver, Bronze, etc.)
+model DistributorLevel {
+  id           String        @id @default(cuid())
+  name         String        @unique // e.g., "Platinum", "Gold", "Silver"
+  code         String        @unique // e.g., "L1", "L2", "L3"
+  description  String?
+  priority     Int           @unique // 1 is highest, 8 is lowest
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  distributors Distributor[]
+  schemeLevels SchemeLevel[]
+}
+
+// Distributors/Dealers
+model Distributor {
+  id                  String            @id @default(cuid())
+  phone               String            @unique
+  name                String
+  email               String?
+  address             String?
+  city                String?
+  state               String?
+  pincode             String?
+  gstNumber           String?
+  distributorLevelId  String
+  isActive            Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  distributorLevel    DistributorLevel  @relation(fields: [distributorLevelId], references: [id])
+  invoices            Invoice[]
+  sales               SalesEntry[]
+  achievements        Achievement[]
+  otpSessions         OTPSession[]
+}
+
+// OTP Sessions for dealer login
+model OTPSession {
+  id            String      @id @default(cuid())
+  distributorId String
+  phone         String
+  otp           String
+  expiresAt     DateTime
+  verified      Boolean     @default(false)
+  createdAt     DateTime    @default(now())
+
+  distributor   Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+
+  @@index([phone, expiresAt])
+}
+
+// Item Categories with weightages
+model ItemCategory {
+  id          String        @id @default(cuid())
+  name        String        @unique // e.g., "Product A", "Product B"
+  code        String        @unique // e.g., "CAT1", "CAT2"
+  description String?
+  weightage   Float         @default(1.0) // Different weightage for target calculation
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  invoiceItems InvoiceItem[]
+}
+
+// Schemes (e.g., Annual Scheme 2024-25)
+model Scheme {
+  id          String        @id @default(cuid())
+  name        String        @unique
+  description String?
+  startDate   DateTime
+  endDate     DateTime
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  schemeLevels SchemeLevel[]
+  achievements Achievement[]
+
+  @@index([startDate, endDate])
+}
+
+// Scheme Levels (4-5 levels matching distributor levels)
+model SchemeLevel {
+  id                    String            @id @default(cuid())
+  schemeId              String
+  distributorLevelId    String
+  name                  String            // e.g., "Platinum Target", "Gold Target"
+
+  // Quarterly targets
+  q1Target              Float             @default(0)
+  q2Target              Float             @default(0)
+  q3Target              Float             @default(0)
+  q4Target              Float             @default(0)
+
+  // Yearly target
+  yearlyTarget          Float             @default(0)
+
+  // Rewards (fixed amounts)
+  q1Reward              Float             @default(0)
+  q2Reward              Float             @default(0)
+  q3Reward              Float             @default(0)
+  q4Reward              Float             @default(0)
+  yearlyReward          Float             @default(0)
+
+  // Payment criteria
+  timelyPaymentRequired Boolean           @default(true)
+  maxCreditDays         Int               @default(30)
+
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  scheme                Scheme            @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  distributorLevel      DistributorLevel  @relation(fields: [distributorLevelId], references: [id])
+
+  @@unique([schemeId, distributorLevelId])
+  @@index([schemeId])
+}
+
+// Invoices
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  distributorId String
+  invoiceDate   DateTime
+  dueDate       DateTime
+  totalAmount   Float
+  paidAmount    Float         @default(0)
+  balanceAmount Float
+  paymentStatus String        @default("UNPAID") // UNPAID, PARTIAL, PAID
+  creditDays    Int?
+  isActive      Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  distributor   Distributor   @relation(fields: [distributorId], references: [id])
+  items         InvoiceItem[]
+  payments      Payment[]
+
+  @@index([distributorId, invoiceDate])
+  @@index([invoiceDate])
+}
+
+// Invoice Items (breakdown by category)
+model InvoiceItem {
+  id             String       @id @default(cuid())
+  invoiceId      String
+  itemCategoryId String
+  quantity       Float
+  rate           Float
+  amount         Float
+  createdAt      DateTime     @default(now())
+
+  invoice        Invoice      @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  itemCategory   ItemCategory @relation(fields: [itemCategoryId], references: [id])
+
+  @@index([invoiceId])
+}
+
+// Payments
+model Payment {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  paymentDate   DateTime
+  amount        Float
+  paymentMode   String   // CASH, CHEQUE, BANK_TRANSFER, UPI
+  referenceNo   String?
+  remarks       String?
+  createdAt     DateTime @default(now())
+
+  invoice       Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([paymentDate])
+}
+
+// Sales Entries (date-wise)
+model SalesEntry {
+  id            String      @id @default(cuid())
+  distributorId String
+  entryDate     DateTime
+  amount        Float
+  remarks       String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  distributor   Distributor @relation(fields: [distributorId], references: [id])
+
+  @@index([distributorId, entryDate])
+  @@index([entryDate])
+}
+
+// Achievement tracking
+model Achievement {
+  id                String      @id @default(cuid())
+  distributorId     String
+  schemeId          String
+  period            String      // Q1, Q2, Q3, Q4, YEARLY
+  targetAmount      Float
+  achievedAmount    Float       @default(0)
+  rewardAmount      Float       @default(0)
+  isAchieved        Boolean     @default(false)
+  isPaymentTimely   Boolean     @default(true)
+  remarks           String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  distributor       Distributor @relation(fields: [distributorId], references: [id])
+  scheme            Scheme      @relation(fields: [schemeId], references: [id])
+
+  @@unique([distributorId, schemeId, period])
+  @@index([distributorId, schemeId])
+}
