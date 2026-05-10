@@ -3,6 +3,34 @@ import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/session';
 import { calculateCreditDays } from '@/lib/utils';
 
+export async function GET(request: NextRequest) {
+  try {
+    await requireAuth('admin');
+    const { searchParams } = new URL(request.url);
+    const distributorId = searchParams.get('distributorId');
+    const where: any = {};
+    if (distributorId) {
+      where.invoice = { distributorId };
+    }
+    const payments = await prisma.payment.findMany({
+      where,
+      include: {
+        invoice: {
+          include: { distributor: true },
+        },
+      },
+      orderBy: { paymentDate: 'desc' },
+      take: 200,
+    });
+    return NextResponse.json({ payments });
+  } catch (error: any) {
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch payments' },
+      { status: error.message === 'Unauthorized' ? 401 : 500 },
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     await requireAuth('admin');

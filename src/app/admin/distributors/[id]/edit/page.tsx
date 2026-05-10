@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
+import { useAdminUser } from '@/lib/useAdminUser';
+import AdminShell from '@/components/AdminShell';
 import { ArrowLeft, Save } from 'lucide-react';
 
 interface Level { id: string; name: string; code: string; }
@@ -12,7 +13,7 @@ export default function EditDistributorPage() {
   const router = useRouter();
   const params = useParams();
   const id = params.id as string;
-  const [user, setUser] = useState<any>(null);
+  const { user, loading: authLoading } = useAdminUser();
   const [levels, setLevels] = useState<Level[]>([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -23,15 +24,8 @@ export default function EditDistributorPage() {
   });
 
   useEffect(() => {
+    if (!user) return;
     (async () => {
-      const sessionRes = await fetch('/api/auth/session');
-      const sessionData = await sessionRes.json();
-      if (!sessionData.user || sessionData.user.userType !== 'admin') {
-        router.push('/admin/login');
-        return;
-      }
-      setUser(sessionData.user);
-
       const [levelsRes, distRes] = await Promise.all([
         fetch('/api/levels'),
         fetch(`/api/admin/distributors/${id}`),
@@ -58,7 +52,7 @@ export default function EditDistributorPage() {
       }
       setLoading(false);
     })();
-  }, [router, id]);
+  }, [user, id]);
 
   const handleChange = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const value = e.target.type === 'checkbox' ? (e.target as HTMLInputElement).checked : e.target.value;
@@ -85,14 +79,11 @@ export default function EditDistributorPage() {
     }
   };
 
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-500">Loading...</div>;
-  }
+  if (authLoading) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar userType="admin" userName={user?.name} />
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <AdminShell userName={user?.name}>
+      <div className="max-w-3xl">
         <Link href="/admin/distributors" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Distributors
         </Link>
@@ -100,6 +91,11 @@ export default function EditDistributorPage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Edit Distributor</h1>
         </div>
+
+        {loading ? (
+          <div className="card p-6 text-center text-gray-500">Loading…</div>
+        ) : (
+          <>
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">{error}</div>
@@ -164,7 +160,9 @@ export default function EditDistributorPage() {
             <Link href="/admin/distributors" className="btn btn-secondary">Cancel</Link>
           </div>
         </form>
+        </>
+        )}
       </div>
-    </div>
+    </AdminShell>
   );
 }

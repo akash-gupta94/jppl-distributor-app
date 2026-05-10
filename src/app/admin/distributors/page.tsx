@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
-import { Plus, Search, Edit, Trash2, ArrowLeft, Phone, Mail, MapPin } from 'lucide-react';
+import { useAdminUser } from '@/lib/useAdminUser';
+import AdminShell from '@/components/AdminShell';
+import { Plus, Search, Edit, Trash2, Phone, Mail, MapPin } from 'lucide-react';
 
 interface Distributor {
   id: string;
@@ -18,24 +18,14 @@ interface Distributor {
 }
 
 export default function DistributorsListPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const { user, loading: authLoading } = useAdminUser();
   const [distributors, setDistributors] = useState<Distributor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    (async () => {
-      const sessionRes = await fetch('/api/auth/session');
-      const sessionData = await sessionRes.json();
-      if (!sessionData.user || sessionData.user.userType !== 'admin') {
-        router.push('/admin/login');
-        return;
-      }
-      setUser(sessionData.user);
-      await loadDistributors('');
-    })();
-  }, [router]);
+    if (user) loadDistributors('');
+  }, [user]);
 
   const loadDistributors = async (q: string) => {
     setLoading(true);
@@ -67,14 +57,10 @@ export default function DistributorsListPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar userType="admin" userName={user?.name} />
-      <div className="container mx-auto px-4 py-8">
-        <Link href="/admin/dashboard" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
-        </Link>
+  if (authLoading) return null;
 
+  return (
+    <AdminShell userName={user?.name}>
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Distributors</h1>
@@ -144,7 +130,6 @@ export default function DistributorsListPage() {
             ))}
           </div>
         )}
-      </div>
-    </div>
+    </AdminShell>
   );
 }

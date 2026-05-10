@@ -78,29 +78,57 @@ model ItemCategory {
   name        String        @unique // e.g., "Product A", "Product B"
   code        String        @unique // e.g., "CAT1", "CAT2"
   description String?
-  weightage   Float         @default(1.0) // Different weightage for target calculation
+  // Default weightage used when a scheme has no per-category override. 1.0 = 100%.
+  weightage   Float         @default(1.0)
   isActive    Boolean       @default(true)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  invoiceItems InvoiceItem[]
+  invoiceItems     InvoiceItem[]
+  schemeCategories SchemeCategory[]
 }
 
 // Schemes (e.g., Annual Scheme 2024-25)
 model Scheme {
-  id          String        @id @default(cuid())
-  name        String        @unique
-  description String?
-  startDate   DateTime
-  endDate     DateTime
-  isActive    Boolean       @default(true)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id            String        @id @default(cuid())
+  name          String        @unique
+  description   String?
+  startDate     DateTime
+  endDate       DateTime
+  isActive      Boolean       @default(true)
+  // If false (default), creating/activating this scheme blocks if it overlaps another active scheme
+  // for any of the same distributor levels. Set true to explicitly allow dual schemes.
+  allowOverlap  Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
-  schemeLevels SchemeLevel[]
-  achievements Achievement[]
+  schemeLevels     SchemeLevel[]
+  schemeCategories SchemeCategory[]
+  achievements     Achievement[]
 
   @@index([startDate, endDate])
+}
+
+// Per-scheme category configuration: weight applied to sales in this category,
+// minimum mix percentage required to unlock the category bonus, and a freeform reward note.
+model SchemeCategory {
+  id             String   @id @default(cuid())
+  schemeId       String
+  itemCategoryId String
+  // Weight in percent. 100 = 1.0x multiplier on sales value when computing weighted sales.
+  weight         Float    @default(100)
+  // Minimum mix as percent of total raw sales the dealer must hit in this category.
+  minMix         Float    @default(0)
+  // Freeform description of what unlocking this category specifically rewards.
+  reward         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  scheme       Scheme       @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  itemCategory ItemCategory @relation(fields: [itemCategoryId], references: [id])
+
+  @@unique([schemeId, itemCategoryId])
+  @@index([schemeId])
 }
 
 // Scheme Levels (4-5 levels matching distributor levels)
@@ -119,12 +147,18 @@ model SchemeLevel {
   // Yearly target
   yearlyTarget          Float             @default(0)
 
-  // Rewards (fixed amounts)
+  // Rewards (fixed amounts) - kept for backwards compatibility / single-tier defaults
   q1Reward              Float             @default(0)
   q2Reward              Float             @default(0)
   q3Reward              Float             @default(0)
   q4Reward              Float             @default(0)
   yearlyReward          Float             @default(0)
+
+  // Tiered rewards: array of { at: number (achievement %), reward: string }
+  // Example: [{at: 80, reward: "Voucher 10k"}, {at: 100, reward: "Trip"}, {at: 120, reward: "Car"}]
+  // When set, takes priority over the flat single rewards above for display.
+  quarterlyRewardTiers  Json?
+  yearlyRewardTiers     Json?
 
   // Payment criteria
   timelyPaymentRequired Boolean           @default(true)

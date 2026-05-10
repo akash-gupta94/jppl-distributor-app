@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Navbar from '@/components/Navbar';
+import { useAdminUser } from '@/lib/useAdminUser';
+import AdminShell from '@/components/AdminShell';
 import { ArrowLeft, Save } from 'lucide-react';
 
 interface Level {
@@ -14,7 +15,7 @@ interface Level {
 
 export default function NewDistributorPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const { user, loading: authLoading } = useAdminUser();
   const [levels, setLevels] = useState<Level[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -31,20 +32,13 @@ export default function NewDistributorPage() {
   });
 
   useEffect(() => {
+    if (!user) return;
     (async () => {
-      const sessionRes = await fetch('/api/auth/session');
-      const sessionData = await sessionRes.json();
-      if (!sessionData.user || sessionData.user.userType !== 'admin') {
-        router.push('/admin/login');
-        return;
-      }
-      setUser(sessionData.user);
-
       const levelsRes = await fetch('/api/levels');
       const levelsData = await levelsRes.json();
       setLevels(levelsData.levels || []);
     })();
-  }, [router]);
+  }, [user]);
 
   const handleChange = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [key]: e.target.value });
@@ -70,10 +64,11 @@ export default function NewDistributorPage() {
     }
   };
 
+  if (authLoading) return null;
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar userType="admin" userName={user?.name} />
-      <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <AdminShell userName={user?.name}>
+      <div className="max-w-3xl">
         <Link href="/admin/distributors" className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back to Distributors
         </Link>
@@ -142,6 +137,6 @@ export default function NewDistributorPage() {
           </div>
         </form>
       </div>
-    </div>
+    </AdminShell>
   );
 }

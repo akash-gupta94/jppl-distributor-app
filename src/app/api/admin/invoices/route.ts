@@ -13,10 +13,14 @@ export async function GET(request: NextRequest) {
     const distributorId = searchParams.get('distributorId');
 
     const skip = (page - 1) * limit;
-    const where: any = {};
+    const where: any = { isActive: true };
 
     if (distributorId) {
       where.distributorId = distributorId;
+    }
+    const includeInactive = searchParams.get('includeInactive');
+    if (includeInactive === 'true') {
+      delete where.isActive;
     }
 
     const [invoices, total] = await Promise.all([
