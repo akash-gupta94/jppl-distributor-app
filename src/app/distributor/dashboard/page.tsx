@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { LogOut, Award, AlertTriangle, CheckCircle2, Clock, ChevronDown } from 'lucide-react';
+import { LogOut, Award, AlertTriangle, CheckCircle2, Clock, ChevronDown, Gift } from 'lucide-react';
 import MobileBottomNav, { DealerView } from '@/components/MobileBottomNav';
 import { useDistributorUser } from '@/lib/useAdminUser';
 import { formatCurrency, formatDate, formatPhone } from '@/lib/utils';
 import type { SchemeProgress } from '@/lib/achievement';
+import { iconFor } from '@/lib/rewardIcons';
 
 interface DashboardData {
   distributor: {
@@ -44,7 +45,7 @@ function ProgressBar({ pct, color = 'green' }: { pct: number; color?: 'green' | 
   );
 }
 
-function Ring({ pct, label, sub }: { pct: number; label: string; sub: string }) {
+function Ring({ pct, label, sub, subtle }: { pct: number; label: string; sub: string; subtle?: string }) {
   const c = clampPct(pct);
   const r = 36;
   const circumference = 2 * Math.PI * r;
@@ -69,11 +70,100 @@ function Ring({ pct, label, sub }: { pct: number; label: string; sub: string }) 
         </svg>
         <div className="absolute inset-0 flex items-center justify-center text-sm font-bold">{Math.round(c)}%</div>
       </div>
-      <div>
+      <div className="min-w-0">
         <p className="text-xs text-gray-500">{label}</p>
         <p className="text-sm font-medium">{sub}</p>
+        {subtle && <p className="text-[11px] text-gray-500 mt-0.5">{subtle}</p>}
       </div>
     </div>
+  );
+}
+
+function PrizeBadge({
+  prize,
+  size = 'md',
+}: {
+  prize: { name: string; imageUrl?: string | null; icon?: string | null; description?: string | null; unlocked: boolean };
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const sizes = {
+    sm: 'w-10 h-10',
+    md: 'w-14 h-14',
+    lg: 'w-20 h-20',
+  };
+  const IconComp = iconFor(prize.icon);
+  return (
+    <div
+      className={`${sizes[size]} rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 border ${
+        prize.unlocked ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'
+      }`}
+    >
+      {prize.imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={prize.imageUrl} alt={prize.name} className="w-full h-full object-cover" />
+      ) : (
+        <IconComp className={`${size === 'sm' ? 'w-5 h-5' : size === 'md' ? 'w-7 h-7' : 'w-10 h-10'} ${prize.unlocked ? 'text-green-600' : 'text-gray-400'}`} />
+      )}
+    </div>
+  );
+}
+
+function PrizeStrip({
+  quarters,
+  yearly,
+  currentQuarter,
+}: {
+  quarters: SchemeProgress['quarters'];
+  yearly: SchemeProgress['yearly'];
+  currentQuarter: number;
+}) {
+  const items = [
+    ...quarters.map((q) => ({
+      key: `q${q.quarter}`,
+      label: `Q${q.quarter}`,
+      isCurrent: q.quarter === currentQuarter,
+      pct: q.pct,
+      prize: q.prize,
+    })),
+    {
+      key: 'yearly',
+      label: 'Yearly',
+      isCurrent: false,
+      pct: yearly.pct,
+      prize: yearly.prize,
+    },
+  ];
+  const anyPrize = items.some((i) => i.prize);
+  if (!anyPrize) return null;
+  return (
+    <section className="bg-white rounded-lg border border-gray-200 p-3">
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1">
+        <Gift className="w-3.5 h-3.5" /> What you&apos;re playing for
+      </p>
+      <div className="flex gap-3 overflow-x-auto -mx-1 px-1 pb-1">
+        {items.map((it) => (
+          <div
+            key={it.key}
+            className={`flex flex-col items-center text-center min-w-[78px] rounded-lg p-1.5 ${
+              it.isCurrent ? 'ring-2 ring-green-400' : ''
+            }`}
+          >
+            {it.prize ? (
+              <PrizeBadge prize={it.prize} size="md" />
+            ) : (
+              <div className="w-14 h-14 rounded-lg border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center">
+                <Gift className="w-5 h-5 text-gray-300" />
+              </div>
+            )}
+            <p className={`text-[11px] mt-1.5 ${it.isCurrent ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>{it.label}</p>
+            <p className="text-[10px] text-gray-500 max-w-[78px] truncate" title={it.prize?.name}>
+              {it.prize?.name ?? '—'}
+            </p>
+            {it.prize?.unlocked && <p className="text-[10px] text-green-700 font-medium">Unlocked</p>}
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -205,9 +295,10 @@ function SchemePicker({
 function HomeView({ data }: { data: DashboardData }) {
   const p = data.progress!;
   const currentQ = p.quarters[p.currentQuarter - 1];
-  const totalRewardEarned =
-    p.quarters.reduce((s, q) => s + (q.reward.achieved ? q.flatReward : 0), 0) +
-    (p.yearly.reward.achieved ? p.yearly.flatReward : 0);
+  const prizesUnlocked = [
+    ...p.quarters.filter((q) => q.prize?.unlocked).map((q) => q.prize!.name),
+    ...(p.yearly.prize?.unlocked ? [p.yearly.prize.name] : []),
+  ];
   return (
     <>
       <section className="rounded-lg bg-gradient-to-br from-green-600 to-emerald-700 text-white p-5">
@@ -218,39 +309,53 @@ function HomeView({ data }: { data: DashboardData }) {
           <div className="bg-white/10 rounded-lg p-3">
             <p className="text-xs opacity-80">Q{p.currentQuarter} progress</p>
             <p className="text-lg font-bold">{Math.round(currentQ.pct)}%</p>
+            <p className="text-[10px] opacity-80 mt-0.5">{formatCurrency(currentQ.timelyPaidValue)} on-time</p>
+            <p className="text-[10px] opacity-70">Total sales {formatCurrency(currentQ.totalInvoiceValue)}</p>
           </div>
           <div className="bg-white/10 rounded-lg p-3">
             <p className="text-xs opacity-80">Year progress</p>
             <p className="text-lg font-bold">{Math.round(p.yearly.pct)}%</p>
+            <p className="text-[10px] opacity-80 mt-0.5">{formatCurrency(p.yearly.weightedSales)} weighted</p>
+            <p className="text-[10px] opacity-70">Total sales {formatCurrency(p.yearly.rawSales)}</p>
           </div>
         </div>
       </section>
 
+      {/* Prizes strip — what the dealer is playing for */}
+      <PrizeStrip quarters={p.quarters} yearly={p.yearly} currentQuarter={p.currentQuarter} />
+
       <section className="card !p-4">
         <Ring
           pct={currentQ.pct}
-          label={`Quarter ${p.currentQuarter} (timely-paid invoices)`}
+          label={`Quarter ${p.currentQuarter} — timely-paid invoices`}
           sub={`${formatCurrency(currentQ.timelyPaidValue)} of ${formatCurrency(currentQ.target)}`}
+          subtle={`Total sales in Q${p.currentQuarter}: ${formatCurrency(currentQ.totalInvoiceValue)}`}
         />
         <div className="mt-4">
           <Ring
             pct={p.yearly.pct}
-            label="Year (weighted sales)"
+            label="Year — weighted sales"
             sub={`${formatCurrency(p.yearly.weightedSales)} of ${formatCurrency(p.yearly.target)}`}
+            subtle={`Raw sales: ${formatCurrency(p.yearly.rawSales)}`}
           />
         </div>
       </section>
 
-      <section className="card !p-4">
-        <h3 className="font-semibold mb-3 flex items-center gap-2"><Award className="w-4 h-4 text-amber-500" />Reward earned so far</h3>
-        <p className="text-2xl font-bold text-green-700">{formatCurrency(totalRewardEarned)}</p>
-        <p className="text-xs text-gray-500 mt-1">Counts unlocked flat rewards across quarters &amp; year.</p>
-
-        <div className="mt-4 space-y-2">
-          <NextRewardLine label="Next quarter reward" reward={currentQ.reward.next} />
-          <NextRewardLine label="Next yearly reward" reward={p.yearly.reward.next} />
-        </div>
-      </section>
+      {prizesUnlocked.length > 0 && (
+        <section className="card !p-4">
+          <h3 className="font-semibold mb-2 flex items-center gap-2">
+            <Award className="w-4 h-4 text-amber-500" /> Prizes unlocked so far
+          </h3>
+          <ul className="text-sm space-y-1">
+            {prizesUnlocked.map((n, i) => (
+              <li key={i} className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-600 flex-shrink-0" />
+                <span>{n}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="card !p-4">
         <h3 className="font-semibold mb-3">Category mix</h3>
@@ -281,63 +386,59 @@ function HomeView({ data }: { data: DashboardData }) {
   );
 }
 
-function NextRewardLine({ label, reward }: { label: string; reward: { at: number; reward: string } | null }) {
-  if (!reward) {
-    return (
-      <div className="flex items-center justify-between text-sm py-1">
-        <span className="text-gray-600">{label}</span>
-        <span className="text-xs text-gray-400">Top tier or unset</span>
-      </div>
-    );
-  }
-  return (
-    <div className="flex items-center justify-between text-sm py-1">
-      <div>
-        <p className="text-gray-700">{label}</p>
-        <p className="text-xs text-gray-500">at {reward.at}% achievement</p>
-      </div>
-      <span className="text-xs px-2 py-1 rounded bg-amber-50 text-amber-700 font-medium">{reward.reward}</span>
-    </div>
-  );
-}
-
 function TargetsView({ data }: { data: DashboardData }) {
   const p = data.progress!;
   return (
     <>
       <section className="card !p-4">
         <h3 className="font-semibold mb-1">Quarterly targets</h3>
-        <p className="text-xs text-gray-500 mb-3">Only invoices fully paid on or before due date count.</p>
+        <p className="text-xs text-gray-500 mb-3">Only invoices fully paid on or before due date count toward the target. Total sales shown for reference.</p>
         <div className="space-y-3">
           {p.quarters.map((q) => (
             <div key={q.quarter} className={`border rounded-lg p-3 ${q.quarter === p.currentQuarter ? 'border-green-300 bg-green-50/30' : 'border-gray-200'}`}>
               <div className="flex items-center justify-between mb-1">
-                <p className="font-medium text-sm">
-                  Q{q.quarter}{' '}
-                  <span className="text-xs text-gray-500 font-normal">
-                    {formatDate(q.startDate)} → {formatDate(q.endDate)}
-                  </span>
-                </p>
-                <span className="text-sm font-semibold">{Math.round(q.pct)}%</span>
+                <div className="flex items-center gap-2 min-w-0">
+                  {q.prize && <PrizeBadge prize={q.prize} size="sm" />}
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">
+                      Q{q.quarter}
+                      {q.prize && <span className="ml-1 text-xs text-gray-700 font-normal">· {q.prize.name}</span>}
+                    </p>
+                    <p className="text-[10px] text-gray-500 font-normal">{formatDate(q.startDate)} → {formatDate(q.endDate)}</p>
+                  </div>
+                </div>
+                <span className="text-sm font-semibold flex-shrink-0">{Math.round(q.pct)}%</span>
               </div>
               <ProgressBar pct={q.pct} color={q.quarter === p.currentQuarter ? 'green' : 'blue'} />
               <div className="flex justify-between text-xs text-gray-600 mt-1">
                 <span>Timely paid {formatCurrency(q.timelyPaidValue)}</span>
                 <span>of {formatCurrency(q.target)}</span>
               </div>
+              <p className="text-[11px] text-gray-500 mt-0.5">Total invoiced this quarter: {formatCurrency(q.totalInvoiceValue)}</p>
             </div>
           ))}
         </div>
       </section>
 
       <section className="card !p-4">
-        <h3 className="font-semibold mb-1">Yearly target (weighted)</h3>
-        <p className="text-xs text-gray-500 mb-3">Each item category contributes at its scheme weight.</p>
+        <div className="flex items-start justify-between mb-2">
+          <div className="min-w-0">
+            <h3 className="font-semibold mb-1">Yearly target (weighted sales)</h3>
+            <p className="text-xs text-gray-500">Each item category contributes at its scheme weight.</p>
+          </div>
+          {p.yearly.prize && (
+            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+              <PrizeBadge prize={p.yearly.prize} size="sm" />
+              <span className="text-xs font-medium text-gray-700 max-w-[120px] truncate">{p.yearly.prize.name}</span>
+            </div>
+          )}
+        </div>
         <ProgressBar pct={p.yearly.pct} color="green" />
         <div className="flex justify-between text-xs text-gray-600 mt-1">
-          <span>{formatCurrency(p.yearly.weightedSales)}</span>
+          <span>{formatCurrency(p.yearly.weightedSales)} weighted</span>
           <span>{Math.round(p.yearly.pct)}% of {formatCurrency(p.yearly.target)}</span>
         </div>
+        <p className="text-[11px] text-gray-500 mt-0.5">Total raw sales: {formatCurrency(p.yearly.rawSales)}</p>
       </section>
 
       <section className="card !p-4">
@@ -368,75 +469,98 @@ function TargetsView({ data }: { data: DashboardData }) {
 
 function RewardsView({ data }: { data: DashboardData }) {
   const p = data.progress!;
-  const currentQ = p.quarters[p.currentQuarter - 1];
   return (
     <>
       <section className="card !p-4">
-        <h3 className="font-semibold mb-1">Quarterly reward tiers</h3>
-        <p className="text-xs text-gray-500 mb-3">Linked to timely-payment performance for Q{p.currentQuarter}.</p>
-        {currentQ.reward.tiers.length === 0 ? (
-          <p className="text-sm text-gray-500">No reward tiers configured for your level on this scheme.</p>
-        ) : (
-          <ul className="space-y-2">
-            {currentQ.reward.tiers.map((tier) => {
-              const unlocked = currentQ.pct >= tier.at;
-              return (
-                <li key={tier.at} className={`flex items-center justify-between p-3 rounded-lg border ${unlocked ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
-                  <div>
-                    <p className="font-medium text-sm">{tier.reward}</p>
-                    <p className="text-xs text-gray-500">at {tier.at}% achievement</p>
-                  </div>
-                  {unlocked ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <Clock className="w-5 h-5 text-gray-400" />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {currentQ.flatReward > 0 && currentQ.reward.tiers.length === 0 && (
-          <div className="border border-gray-200 rounded-lg p-3 mt-2">
-            <p className="text-sm font-medium">Flat reward {formatCurrency(currentQ.flatReward)}</p>
-            <p className="text-xs text-gray-500">unlocked at 100% achievement</p>
-          </div>
-        )}
+        <h3 className="font-semibold mb-1">Quarterly prizes</h3>
+        <p className="text-xs text-gray-500 mb-3">One prize per quarter, unlocked when timely-paid invoices hit 100% of that quarter&apos;s target.</p>
+        <div className="space-y-2">
+          {p.quarters.map((q) => (
+            <PrizeRow
+              key={q.quarter}
+              label={`Q${q.quarter} · ${formatDate(q.startDate)} → ${formatDate(q.endDate)}`}
+              pct={q.pct}
+              progress={`${formatCurrency(q.timelyPaidValue)} of ${formatCurrency(q.target)} timely-paid`}
+              salesNote={`Total sales this quarter: ${formatCurrency(q.totalInvoiceValue)}`}
+              prize={q.prize}
+              highlightCurrent={q.quarter === p.currentQuarter}
+            />
+          ))}
+        </div>
       </section>
 
       <section className="card !p-4">
-        <h3 className="font-semibold mb-1">Yearly reward tiers</h3>
-        <p className="text-xs text-gray-500 mb-3">Linked to weighted category sales.</p>
-        {p.yearly.reward.tiers.length === 0 ? (
-          <p className="text-sm text-gray-500">No yearly reward tiers configured for your level on this scheme.</p>
-        ) : (
-          <ul className="space-y-2">
-            {p.yearly.reward.tiers.map((tier) => {
-              const unlocked = p.yearly.pct >= tier.at;
-              return (
-                <li key={tier.at} className={`flex items-center justify-between p-3 rounded-lg border ${unlocked ? 'border-green-200 bg-green-50' : 'border-gray-200'}`}>
-                  <div>
-                    <p className="font-medium text-sm">{tier.reward}</p>
-                    <p className="text-xs text-gray-500">at {tier.at}% achievement</p>
-                  </div>
-                  {unlocked ? (
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  ) : (
-                    <Clock className="w-5 h-5 text-gray-400" />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {p.yearly.flatReward > 0 && p.yearly.reward.tiers.length === 0 && (
-          <div className="border border-gray-200 rounded-lg p-3 mt-2">
-            <p className="text-sm font-medium">Flat reward {formatCurrency(p.yearly.flatReward)}</p>
-            <p className="text-xs text-gray-500">unlocked at 100% achievement</p>
-          </div>
-        )}
+        <h3 className="font-semibold mb-1">Yearly grand prize</h3>
+        <p className="text-xs text-gray-500 mb-3">Unlocked at 100% of yearly weighted sales target.</p>
+        <PrizeRow
+          label={`${formatDate(p.scheme.startDate)} → ${formatDate(p.scheme.endDate)}`}
+          pct={p.yearly.pct}
+          progress={`${formatCurrency(p.yearly.weightedSales)} of ${formatCurrency(p.yearly.target)} weighted`}
+          salesNote={`Total raw sales: ${formatCurrency(p.yearly.rawSales)}`}
+          prize={p.yearly.prize}
+          big
+        />
       </section>
     </>
+  );
+}
+
+function PrizeRow({
+  label,
+  pct,
+  progress,
+  salesNote,
+  prize,
+  highlightCurrent,
+  big,
+}: {
+  label: string;
+  pct: number;
+  progress: string;
+  salesNote: string;
+  prize: { name: string; imageUrl?: string | null; icon?: string | null; description?: string | null; unlocked: boolean } | null;
+  highlightCurrent?: boolean;
+  big?: boolean;
+}) {
+  const unlocked = !!prize?.unlocked;
+  return (
+    <div className={`border rounded-lg p-3 ${unlocked ? 'border-green-300 bg-green-50' : highlightCurrent ? 'border-green-200 bg-green-50/30' : 'border-gray-200'}`}>
+      <div className="flex items-start gap-3">
+        {prize ? (
+          <PrizeBadge prize={prize} size={big ? 'lg' : 'md'} />
+        ) : (
+          <div className={`${big ? 'w-20 h-20' : 'w-14 h-14'} rounded-lg border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center flex-shrink-0`}>
+            <Gift className={`${big ? 'w-8 h-8' : 'w-6 h-6'} text-gray-300`} />
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] text-gray-500 uppercase tracking-wide truncate">{label}</p>
+            <span className="text-sm font-semibold flex-shrink-0">{Math.round(pct)}%</span>
+          </div>
+          <p className={`${big ? 'text-base' : 'text-sm'} font-semibold text-gray-900 mt-0.5`}>
+            {prize ? prize.name : 'No prize set'}
+          </p>
+          {prize?.description && <p className="text-xs text-gray-600 mt-0.5">{prize.description}</p>}
+          <div className="mt-2">
+            <ProgressBar pct={pct} color={unlocked ? 'green' : 'amber'} />
+          </div>
+          <p className="text-xs text-gray-600 mt-1">{progress}</p>
+          <p className="text-[11px] text-gray-500">{salesNote}</p>
+          <div className="mt-1.5">
+            {unlocked ? (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-green-100 text-green-800 font-medium">
+                <CheckCircle2 className="w-3 h-3" /> Unlocked
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-700">
+                <Clock className="w-3 h-3" /> Locked
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

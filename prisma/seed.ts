@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -114,91 +114,68 @@ async function main() {
     },
   });
 
-  // Per-level targets and tiered rewards
+  // Per-level targets + named prizes per quarter & yearly grand prize.
+  // imageUrl is left null in seed (admin uploads images from the UI).
   const levelConfigs = [
     {
       level: topLevels[0], // Platinum Plus
       qTarget: 2600000,
       yearlyTarget: 11000000,
-      yearlyReward: 500000,
-      qReward: 100000,
-      qTiers: [
-        { at: 80, reward: 'Dealer meet sponsorship' },
-        { at: 100, reward: '₹90,000 travel voucher' },
-        { at: 120, reward: 'International trip upgrade' },
-      ],
-      yTiers: [
-        { at: 85, reward: 'Priority rebate slab' },
-        { at: 100, reward: '₹4,00,000 business development fund' },
-        { at: 125, reward: 'Executive car support' },
-      ],
+      rewards: {
+        Q1: { name: 'Apple MacBook Pro 14"', icon: 'laptop', description: 'For Q1 timely-payment champions' },
+        Q2: { name: 'Royal Enfield Classic 350', icon: 'bike', description: null },
+        Q3: { name: 'Bali holiday for two', icon: 'plane', description: '5 nights, all-inclusive' },
+        Q4: { name: 'Samsung Neo QLED 65"', icon: 'tv', description: null },
+        YEARLY: { name: 'Maruti Suzuki Brezza', icon: 'car', description: 'Top-end variant, registration support included' },
+      },
     },
     {
       level: topLevels[1], // Platinum
       qTarget: 1700000,
       yearlyTarget: 7800000,
-      yearlyReward: 300000,
-      qReward: 60000,
-      qTiers: [
-        { at: 80, reward: '₹18,000 gift voucher' },
-        { at: 100, reward: '₹55,000 travel voucher' },
-        { at: 120, reward: 'Family holiday upgrade' },
-      ],
-      yTiers: [
-        { at: 85, reward: 'Priority rebate slab' },
-        { at: 100, reward: '₹2,25,000 business development fund' },
-        { at: 125, reward: 'Car down-payment support' },
-      ],
+      rewards: {
+        Q1: { name: 'iPhone 15', icon: 'smartphone', description: null },
+        Q2: { name: 'Hero Splendor Plus', icon: 'bike', description: null },
+        Q3: { name: 'Goa weekend for two', icon: 'plane', description: '3 nights' },
+        Q4: { name: 'Sony 55" 4K TV', icon: 'tv', description: null },
+        YEARLY: { name: 'Honda Activa H-Smart', icon: 'bike', description: 'Premium variant' },
+      },
     },
     {
       level: topLevels[2], // Gold Plus
       qTarget: 950000,
       yearlyTarget: 4300000,
-      yearlyReward: 180000,
-      qReward: 40000,
-      qTiers: [
-        { at: 80, reward: '₹10,000 gift voucher' },
-        { at: 100, reward: '₹28,000 electronics reward' },
-        { at: 120, reward: 'Premium appliance upgrade' },
-      ],
-      yTiers: [
-        { at: 85, reward: 'Priority rebate slab' },
-        { at: 100, reward: '₹1,10,000 store upgrade support' },
-        { at: 125, reward: 'Premium branding package' },
-      ],
+      rewards: {
+        Q1: { name: 'Samsung Galaxy S24', icon: 'smartphone', description: null },
+        Q2: { name: 'Apple Watch SE', icon: 'watch', description: null },
+        Q3: { name: 'Sony WH-1000XM5 Headphones', icon: 'headphones', description: null },
+        Q4: { name: 'iPad 10th Gen', icon: 'laptop', description: null },
+        YEARLY: { name: 'Bali holiday for two', icon: 'plane', description: '5 nights all-inclusive' },
+      },
     },
     {
       level: topLevels[3], // Gold
       qTarget: 520000,
       yearlyTarget: 2300000,
-      yearlyReward: 100000,
-      qReward: 20000,
-      qTiers: [
-        { at: 80, reward: '₹6,000 gift voucher' },
-        { at: 100, reward: '₹15,000 merchandise reward' },
-        { at: 120, reward: 'Smartphone reward' },
-      ],
-      yTiers: [
-        { at: 85, reward: 'Priority rebate slab' },
-        { at: 100, reward: '₹55,000 store branding support' },
-        { at: 125, reward: 'Display wall makeover' },
-      ],
+      rewards: {
+        Q1: { name: 'OnePlus 12R', icon: 'smartphone', description: null },
+        Q2: { name: 'JBL Flip 6 Speaker', icon: 'headphones', description: null },
+        Q3: { name: 'boAt Storm Smartwatch', icon: 'watch', description: null },
+        Q4: { name: 'PS5 Slim', icon: 'gamepad', description: null },
+        YEARLY: { name: 'LG 1.5 Ton Inverter AC', icon: 'refrigerator', description: 'Including installation' },
+      },
     },
     {
       level: topLevels[4], // Silver Plus
       qTarget: 280000,
       yearlyTarget: 1200000,
-      yearlyReward: 50000,
-      qReward: 10000,
-      qTiers: [
-        { at: 80, reward: '₹3,000 voucher' },
-        { at: 100, reward: '₹8,000 voucher' },
-        { at: 120, reward: 'Branded merchandise' },
-      ],
-      yTiers: [
-        { at: 85, reward: 'Priority rebate slab' },
-        { at: 100, reward: '₹25,000 branding support' },
-      ],
+      rewards: {
+        Q1: { name: '₹3,000 Amazon voucher', icon: 'card', description: null },
+        Q2: { name: '₹3,000 Flipkart voucher', icon: 'card', description: null },
+        Q3: { name: '₹5,000 myntra voucher', icon: 'bag', description: null },
+        Q4: { name: 'JPPL branded merchandise pack', icon: 'gift', description: null },
+        YEARLY: { name: 'Samsung Galaxy A55 5G', icon: 'smartphone', description: null },
+      },
     },
   ];
 
@@ -213,13 +190,7 @@ async function main() {
         q3Target: cfg.qTarget,
         q4Target: cfg.qTarget,
         yearlyTarget: cfg.yearlyTarget,
-        q1Reward: cfg.qReward,
-        q2Reward: cfg.qReward,
-        q3Reward: cfg.qReward,
-        q4Reward: cfg.qReward,
-        yearlyReward: cfg.yearlyReward,
-        quarterlyRewardTiers: cfg.qTiers,
-        yearlyRewardTiers: cfg.yTiers,
+        rewards: cfg.rewards as unknown as Prisma.InputJsonValue,
         timelyPaymentRequired: true,
         maxCreditDays: 30,
       },

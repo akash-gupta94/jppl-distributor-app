@@ -147,18 +147,27 @@ model SchemeLevel {
   // Yearly target
   yearlyTarget          Float             @default(0)
 
-  // Rewards (fixed amounts) - kept for backwards compatibility / single-tier defaults
+  // Deprecated cash-amount fields (kept for backwards compat with older data;
+  // new flow uses the `rewards` JSON below).
   q1Reward              Float             @default(0)
   q2Reward              Float             @default(0)
   q3Reward              Float             @default(0)
   q4Reward              Float             @default(0)
   yearlyReward          Float             @default(0)
-
-  // Tiered rewards: array of { at: number (achievement %), reward: string }
-  // Example: [{at: 80, reward: "Voucher 10k"}, {at: 100, reward: "Trip"}, {at: 120, reward: "Car"}]
-  // When set, takes priority over the flat single rewards above for display.
   quarterlyRewardTiers  Json?
   yearlyRewardTiers     Json?
+
+  // Single named reward per period — what the dealer is actually playing for.
+  // Shape: {
+  //   Q1:     { name: string, imageUrl?: string, icon?: string, description?: string },
+  //   Q2:     { name, imageUrl?, icon?, description? },
+  //   Q3:     { ... },
+  //   Q4:     { ... },
+  //   YEARLY: { ... }
+  // }
+  // imageUrl may be a normal http(s) URL or a base64 data: URL (we accept either).
+  // icon is a lucide icon name from the allowed list in src/lib/rewardIcons.ts
+  rewards               Json?
 
   // Payment criteria
   timelyPaymentRequired Boolean           @default(true)

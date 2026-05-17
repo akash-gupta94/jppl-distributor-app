@@ -1,17 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { requireAuth } from '@/lib/session';
 import { findOverlappingSchemes } from '@/lib/achievement';
 
-function sanitizeTiers(input: unknown): { at: number; reward: string }[] {
-  if (!Array.isArray(input)) return [];
-  return input
-    .map((t) => ({
-      at: Number((t as any)?.at),
-      reward: String((t as any)?.reward ?? ''),
-    }))
-    .filter((t) => Number.isFinite(t.at) && t.at > 0)
-    .sort((a, b) => a.at - b.at);
+const REWARD_PERIODS = ['Q1', 'Q2', 'Q3', 'Q4', 'YEARLY'] as const;
+
+function sanitizeRewards(input: unknown): Record<string, { name: string; imageUrl: string | null; icon: string | null; description: string | null }> | null {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const out: any = {};
+  for (const period of REWARD_PERIODS) {
+    const r = (input as any)[period];
+    if (!r || typeof r !== 'object') continue;
+    const name = String(r.name ?? '').trim();
+    if (!name) continue;
+    out[period] = {
+      name,
+      imageUrl: r.imageUrl ? String(r.imageUrl) : null,
+      icon: r.icon ? String(r.icon) : null,
+      description: r.description ? String(r.description) : null,
+    };
+  }
+  return Object.keys(out).length ? out : null;
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
@@ -94,13 +104,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
               q3Target: Number(l.q3Target ?? 0),
               q4Target: Number(l.q4Target ?? 0),
               yearlyTarget: Number(l.yearlyTarget ?? 0),
-              q1Reward: Number(l.q1Reward ?? 0),
-              q2Reward: Number(l.q2Reward ?? 0),
-              q3Reward: Number(l.q3Reward ?? 0),
-              q4Reward: Number(l.q4Reward ?? 0),
-              yearlyReward: Number(l.yearlyReward ?? 0),
-              quarterlyRewardTiers: sanitizeTiers(l.quarterlyRewardTiers),
-              yearlyRewardTiers: sanitizeTiers(l.yearlyRewardTiers),
+              rewards: (sanitizeRewards(l.rewards) ?? Prisma.JsonNull) as Prisma.InputJsonValue,
               maxCreditDays: Number(l.maxCreditDays ?? 30),
               timelyPaymentRequired: l.timelyPaymentRequired !== undefined ? !!l.timelyPaymentRequired : true,
             })),

@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma';
+import { parseRewardsField, type RewardItem } from '@/lib/rewardIcons';
 
 /**
  * The achievement engine. Computes a distributor's progress against a scheme:
@@ -47,8 +48,10 @@ export interface QuarterProgress {
   // Sum of all invoice values for invoices issued in this quarter (regardless of payment).
   totalInvoiceValue: number;
   pct: number; // timelyPaidValue / target * 100
-  reward: RewardState;
+  reward: RewardState; // deprecated tier-based state, kept for backwards compat
   flatReward: number; // legacy single reward amount
+  // New named-reward field. Present when admin has configured a reward for this quarter.
+  prize: (RewardItem & { unlocked: boolean }) | null;
 }
 
 export interface SchemeProgress {
@@ -81,8 +84,9 @@ export interface SchemeProgress {
     rawSales: number;
     weightedSales: number;
     pct: number;
-    reward: RewardState;
-    flatReward: number;
+    reward: RewardState; // deprecated tier-based
+    flatReward: number; // legacy
+    prize: (RewardItem & { unlocked: boolean }) | null;
   };
   categories: CategoryProgress[];
   invoices: Array<{
@@ -301,6 +305,7 @@ export async function computeSchemeProgress(
   const currentQuarter = quarterFor(today, ranges) ?? 1;
 
   const maxCreditDays = schemeLevel?.maxCreditDays ?? 30;
+  const rewardsMap = parseRewardsField(schemeLevel?.rewards);
 
   const enrichedInvoices = invoiceRows.map((inv) => {
     const lastPayment = inv.payments[0]?.paymentDate ?? null;
@@ -349,6 +354,8 @@ export async function computeSchemeProgress(
           : schemeLevel.q4Reward
         : 0;
     const pct = target ? (timely / target) * 100 : 0;
+    const prizeKey = (`Q${q}` as 'Q1' | 'Q2' | 'Q3' | 'Q4');
+    const prizeDef = rewardsMap[prizeKey];
     return {
       quarter: q,
       startDate: isoDate(range.start),
@@ -359,6 +366,9 @@ export async function computeSchemeProgress(
       pct,
       reward: rewardState(schemeLevel?.quarterlyRewardTiers, pct),
       flatReward,
+      prize: prizeDef
+        ? { ...prizeDef, unlocked: pct >= 100 }
+        : null,
     };
   });
 
@@ -401,6 +411,9 @@ export async function computeSchemeProgress(
       pct: yearlyPct,
       reward: rewardState(schemeLevel?.yearlyRewardTiers, yearlyPct),
       flatReward: schemeLevel?.yearlyReward ?? 0,
+      prize: rewardsMap.YEARLY
+        ? { ...rewardsMap.YEARLY, unlocked: yearlyPct >= 100 }
+        : null,
     },
     categories,
     invoices: enrichedInvoices,

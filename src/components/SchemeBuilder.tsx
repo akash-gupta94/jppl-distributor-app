@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, Save, Trash2, AlertCircle } from 'lucide-react';
+import RewardEditor from '@/components/RewardEditor';
+import { parseRewardsField, type RewardItem, type RewardsMap } from '@/lib/rewardIcons';
 
 interface Level {
   id: string;
@@ -19,11 +21,6 @@ interface Category {
   isActive: boolean;
 }
 
-interface RewardTier {
-  at: number;
-  reward: string;
-}
-
 interface LevelConfig {
   distributorLevelId: string;
   enabled: boolean;
@@ -33,10 +30,8 @@ interface LevelConfig {
   q3Target: number;
   q4Target: number;
   yearlyTarget: number;
-  yearlyReward: number;
   maxCreditDays: number;
-  quarterlyRewardTiers: RewardTier[];
-  yearlyRewardTiers: RewardTier[];
+  rewards: RewardsMap;
 }
 interface CategoryConfig {
   itemCategoryId: string;
@@ -62,10 +57,8 @@ interface ExistingScheme {
     q3Target: number;
     q4Target: number;
     yearlyTarget: number;
-    yearlyReward: number;
     maxCreditDays: number;
-    quarterlyRewardTiers: unknown;
-    yearlyRewardTiers: unknown;
+    rewards: unknown;
   }>;
   schemeCategories: Array<{
     itemCategoryId: string;
@@ -80,34 +73,7 @@ function isoDate(d: string | Date) {
   return date.toISOString().slice(0, 10);
 }
 
-function tiersToText(tiers: RewardTier[]): string {
-  return tiers.map((t) => `${t.at}: ${t.reward}`).join('\n');
-}
-
-function textToTiers(text: string): RewardTier[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const idx = line.indexOf(':');
-      if (idx === -1) return { at: Number(line), reward: '' };
-      return {
-        at: Number(line.slice(0, idx).trim()),
-        reward: line.slice(idx + 1).trim(),
-      };
-    })
-    .filter((t) => Number.isFinite(t.at) && t.at > 0)
-    .sort((a, b) => a.at - b.at);
-}
-
-function normalizeTiers(input: unknown): RewardTier[] {
-  if (!Array.isArray(input)) return [];
-  return input
-    .map((t: any) => ({ at: Number(t?.at), reward: String(t?.reward ?? '') }))
-    .filter((t) => Number.isFinite(t.at) && t.at > 0)
-    .sort((a, b) => a.at - b.at);
-}
+const EMPTY_REWARD: RewardItem = { name: '', imageUrl: null, icon: null, description: null };
 
 export default function SchemeBuilder({ existing }: { existing?: ExistingScheme }) {
   const router = useRouter();
@@ -153,10 +119,8 @@ export default function SchemeBuilder({ existing }: { existing?: ExistingScheme 
             q3Target: present?.q3Target ?? 0,
             q4Target: present?.q4Target ?? 0,
             yearlyTarget: present?.yearlyTarget ?? 0,
-            yearlyReward: present?.yearlyReward ?? 0,
             maxCreditDays: present?.maxCreditDays ?? 30,
-            quarterlyRewardTiers: normalizeTiers(present?.quarterlyRewardTiers),
-            yearlyRewardTiers: normalizeTiers(present?.yearlyRewardTiers),
+            rewards: parseRewardsField(present?.rewards),
           };
         }),
       );
@@ -212,10 +176,8 @@ export default function SchemeBuilder({ existing }: { existing?: ExistingScheme 
           q3Target: l.q3Target,
           q4Target: l.q4Target,
           yearlyTarget: l.yearlyTarget,
-          yearlyReward: l.yearlyReward,
           maxCreditDays: l.maxCreditDays,
-          quarterlyRewardTiers: l.quarterlyRewardTiers,
-          yearlyRewardTiers: l.yearlyRewardTiers,
+          rewards: l.rewards,
         })),
         categories: enabledCategories.map((c) => ({
           itemCategoryId: c.itemCategoryId,
@@ -345,9 +307,9 @@ export default function SchemeBuilder({ existing }: { existing?: ExistingScheme 
       </section>
 
       <section className="card">
-        <h2 className="font-semibold mb-1">Distributor levels</h2>
+        <h2 className="font-semibold mb-1">Distributor levels — targets &amp; rewards</h2>
         <p className="text-sm text-gray-600 mb-4">
-          For each eligible level set quarterly targets (timely-payment based) and yearly target (weighted-sales based). Reward tiers: one per line as <code>percent: reward text</code>, e.g. <code>80: Voucher 10k</code>.
+          For each eligible level set quarterly targets (timely-payment based) and yearly target (weighted-sales based). Then configure the prize for each quarter and the yearly grand prize — these show up on the dealer&apos;s mobile dashboard.
         </p>
         <div className="space-y-4">
           {levelConfigs.map((l) => {
@@ -361,58 +323,58 @@ export default function SchemeBuilder({ existing }: { existing?: ExistingScheme 
                   </label>
                 </div>
                 {l.enabled && (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Tier name</label>
+                        <input value={l.name} onChange={(e) => updateLevel(l.distributorLevelId, { name: e.target.value })} className="input w-full" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Max credit days for timely-paid</label>
+                        <input type="number" min={0} value={l.maxCreditDays} onChange={(e) => updateLevel(l.distributorLevelId, { maxCreditDays: Number(e.target.value) })} className="input w-full" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Yearly sales target ₹</label>
+                        <input type="number" min={0} value={l.yearlyTarget} onChange={(e) => updateLevel(l.distributorLevelId, { yearlyTarget: Number(e.target.value) })} className="input w-full" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Q1 timely-paid target ₹</label>
+                        <input type="number" min={0} value={l.q1Target} onChange={(e) => updateLevel(l.distributorLevelId, { q1Target: Number(e.target.value) })} className="input w-full" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Q2 timely-paid target ₹</label>
+                        <input type="number" min={0} value={l.q2Target} onChange={(e) => updateLevel(l.distributorLevelId, { q2Target: Number(e.target.value) })} className="input w-full" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Q3 timely-paid target ₹</label>
+                        <input type="number" min={0} value={l.q3Target} onChange={(e) => updateLevel(l.distributorLevelId, { q3Target: Number(e.target.value) })} className="input w-full" />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Q4 timely-paid target ₹</label>
+                        <input type="number" min={0} value={l.q4Target} onChange={(e) => updateLevel(l.distributorLevelId, { q4Target: Number(e.target.value) })} className="input w-full" />
+                      </div>
+                    </div>
+
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Tier name</label>
-                      <input value={l.name} onChange={(e) => updateLevel(l.distributorLevelId, { name: e.target.value })} className="input w-full" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Max credit days</label>
-                      <input type="number" min={0} value={l.maxCreditDays} onChange={(e) => updateLevel(l.distributorLevelId, { maxCreditDays: Number(e.target.value) })} className="input w-full" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Yearly target ₹</label>
-                      <input type="number" min={0} value={l.yearlyTarget} onChange={(e) => updateLevel(l.distributorLevelId, { yearlyTarget: Number(e.target.value) })} className="input w-full" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Yearly flat reward ₹</label>
-                      <input type="number" min={0} value={l.yearlyReward} onChange={(e) => updateLevel(l.distributorLevelId, { yearlyReward: Number(e.target.value) })} className="input w-full" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Q1 target ₹</label>
-                      <input type="number" min={0} value={l.q1Target} onChange={(e) => updateLevel(l.distributorLevelId, { q1Target: Number(e.target.value) })} className="input w-full" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Q2 target ₹</label>
-                      <input type="number" min={0} value={l.q2Target} onChange={(e) => updateLevel(l.distributorLevelId, { q2Target: Number(e.target.value) })} className="input w-full" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Q3 target ₹</label>
-                      <input type="number" min={0} value={l.q3Target} onChange={(e) => updateLevel(l.distributorLevelId, { q3Target: Number(e.target.value) })} className="input w-full" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Q4 target ₹</label>
-                      <input type="number" min={0} value={l.q4Target} onChange={(e) => updateLevel(l.distributorLevelId, { q4Target: Number(e.target.value) })} className="input w-full" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-xs text-gray-600 mb-1">Quarterly reward tiers</label>
-                      <textarea
-                        rows={3}
-                        value={tiersToText(l.quarterlyRewardTiers)}
-                        onChange={(e) => updateLevel(l.distributorLevelId, { quarterlyRewardTiers: textToTiers(e.target.value) })}
-                        className="input w-full font-mono text-xs"
-                        placeholder={'80: Voucher 10k\n100: Trip\n120: Family holiday'}
-                      />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-xs text-gray-600 mb-1">Yearly reward tiers</label>
-                      <textarea
-                        rows={3}
-                        value={tiersToText(l.yearlyRewardTiers)}
-                        onChange={(e) => updateLevel(l.distributorLevelId, { yearlyRewardTiers: textToTiers(e.target.value) })}
-                        className="input w-full font-mono text-xs"
-                        placeholder={'85: Priority rebate\n100: BD fund 4L\n125: Car support'}
-                      />
+                      <p className="text-sm font-semibold mb-2">Prizes</p>
+                      <p className="text-xs text-gray-500 mb-3">One reward per period. Upload an image, or pick an icon as a fallback. Both name and either an image or an icon will be shown to the dealer.</p>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {(['Q1', 'Q2', 'Q3', 'Q4'] as const).map((q) => (
+                          <RewardEditor
+                            key={q}
+                            label={`${q} reward (unlocked at 100% timely-paid)`}
+                            value={l.rewards[q] ?? EMPTY_REWARD}
+                            onChange={(v) => updateLevel(l.distributorLevelId, { rewards: { ...l.rewards, [q]: v.name ? v : undefined } })}
+                          />
+                        ))}
+                        <div className="md:col-span-2">
+                          <RewardEditor
+                            label="Yearly grand prize (unlocked at 100% weighted-sales)"
+                            value={l.rewards.YEARLY ?? EMPTY_REWARD}
+                            onChange={(v) => updateLevel(l.distributorLevelId, { rewards: { ...l.rewards, YEARLY: v.name ? v : undefined } })}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
